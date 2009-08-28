@@ -1,0 +1,13 @@
+de.uniba.wiai.lspi.chord.com
+de.uniba.wiai.lspi.chord.com.local
+de.uniba.wiai.lspi.chord.com.rmi
+de.uniba.wiai.lspi.chord.com.socket
+de.uniba.wiai.lspi.chord.console
+de.uniba.wiai.lspi.chord.console.command
+de.uniba.wiai.lspi.chord.console.command.entry
+de.uniba.wiai.lspi.chord.data
+de.uniba.wiai.lspi.chord.service
+de.uniba.wiai.lspi.chord.service.impl
+de.uniba.wiai.lspi.util.console
+de.uniba.wiai.lspi.util.console.parser
+de.uniba.wiai.lspi.util.logging

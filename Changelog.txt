@@ -1,0 +1,62 @@
+Open Chord version 1.0.5 (2008-04-11)
+=====================================
+
+- Fixed bug 1906886: Re-joining partially destroys ring 
+- Addressed bug report 1883566 	IndexOutOfBounds Exception, when SuccessorList
+  capacity = 0. Open Chord cannot be initialized, when capacity of successor
+  list is 0. 
+- Added RMI-communication protocol (ocrmi). In order to use this protocol URLs
+  must start with "ocrmi". The protocol can be changed in the console with the
+  command "cprotocol -t ocrmi" before creating or joining a network. When
+  compiling Open Chord do not forget to create the stub class for
+  de.uniba.wiai.lspi.chord.com.rmi.RMIEndpoint with rmic!
+
+
+Open Chord version 1.0.4 (2007-10-25)
+=====================================
+
+- Fixed bug 1795697: https://sourceforge.net/tracker/index.php?
+      func=detail&aid=1795697&group_id=158069&atid=806356
+- Fixed synchronization problems in class
+  de.uniba.wiai.lspi.chord.com.socket.SocketProxy
+- Changed de.uniba.wiai.lspi.chord.data.URL.KNOWN_PROTOCOLS from String array
+  to unmodifiable java.util.List<String>
+- Manual adapted to changes in URL.
+- Added possibility to configure Log4jLogger with help of xml file according to
+  feature request https://sourceforge.net/tracker/index.php?
+      func=detail&aid=1670740&group_id=158069&atid=806359
+
+
+Open Chord version 1.0.3 (2007-07-18)
+=====================================
+
+- There was a bug, when a peer P1, that has completely joined the overlay
+  network, learned about a new successor P2. When P2 already had entries, the
+  entries for which P1 was then responsible were left under control of P2 and
+  therefore disappeared. StabilizeTask now calls notifyAndCopyEntries when the
+  successor has changed to prevent this. Thank you to Frank Ruwolt for calling
+  our attention to this problem.
+
+
+Open Chord version 1.0.2 (2007-01-12)
+=====================================
+
+- Fixed Bug 1627751.
+- Improved synchronization of data stored on a peer.
+- Improved logging. 
+- ant build file now creates a executable jar, that contains the
+  chord.properties file.
+
+
+Open Chord version 1.0.1 (2006-05-23)
+=====================================
+
+- Improved and removed some bugs from the manual.
+- Corrected some minor bugs in the implementation of the communication
+  protocols.
+
+
+Open Chord version 1.0 (2006-01-31)
+===================================
+
+- Initial release

@@ -1,0 +1,83 @@
+<!--
+     ANT can be found @ http://jakarta.apache.org/ant/index.html
+-->
+<project name="Open Chord 1.0.5" default="main" basedir=".">
+
+	<!-- set global properties for this build -->
+	<property name="srcdir" value="src"/>
+	<property name="dstdir" value="build/classes"/>
+	<property name="impdir" value="lib"/>
+	<property name="distdir" value="dist"/>
+	<property name="dist_file" value="openchord_1.0.5.jar"/>	
+	<property name="docdir" value="docs/api"/>
+
+	<target name="init" depends="clean">
+		<mkdir dir="${dstdir}"/>
+		<mkdir dir="${distdir}"/>
+	</target>
+
+	<target name="compile" depends="init">
+		<javac srcdir="${srcdir}" destdir="${dstdir}" deprecation="Off" debug="true">
+			<include name="**/*.java"/>
+			<exclude name="**/CVS/*"/>
+			<classpath>
+				<fileset dir="${impdir}">
+					<include name="**/*.jar"/>
+					<include name="**/*.zip"/>
+				</fileset>
+			</classpath>	
+		</javac>
+	</target>
+
+	<target name="dist">
+		<copy file="config/chord.properties" todir="${dstdir}"/>
+		<jar destfile="${distdir}/${dist_file}" basedir="${dstdir}/">
+			<manifest>
+		        	<attribute name="Built-By" value="${user.name}"/>
+				<attribute name="Main-Class" value="de.uniba.wiai.lspi.chord.console.Main"/>
+		        </manifest>
+		</jar>
+		<delete file="${dstdir}/chord.properties"/>
+	</target>
+	
+	<target name="clean">
+		<delete verbose="Off" includeEmptyDirs="true" quiet="true">
+			<fileset dir="${dstdir}/"/>
+		</delete>
+		<delete file="${distdir}/${dist_file}" quiet="true"/>
+	</target> 
+
+    <target name="documentation">
+		<delete verbose="Off" includeEmptyDirs="true" quiet="true">
+			<fileset dir="${docdir}/"/>
+		</delete>
+		<mkdir dir="${docdir}"/>
+		<!-- create documentation -->
+		<javadoc
+			packagenames="de.uniba.wiai.lspi.*"
+
+			sourcepath="${srcdir}"
+			destdir="${docdir}"
+			author="false"
+    			version="false"
+			windowtitle="OpenChord API 1.0.5">
+
+			<classpath>
+				<fileset dir="${impdir}">
+					<include name="**/*.jar"/>
+					<include name="**/*.zip"/>
+				</fileset>
+			</classpath>
+			
+			<doctitle><![CDATA[<h1>OpenChord API</h1>]]></doctitle>
+			<bottom><![CDATA[<i>Copyright &#169; 2004-2008 Karsten Loesing, Sven Kaffille - Distributed and Mobile Systems Group, <a href="http://www.uni-bamberg.de/pi/">Lehrstuhl f&uuml;r Praktische Informatik</a>, <a href="http://www.uni-bamberg.de/">Universit&auml;t Bamberg</a>. All Rights Reserved.</i>]]></bottom>
+			<group title="Service logic packages" packages="de.uniba.wiai.lspi.chord.service:de.uniba.wiai.lspi.chord.service.*"/>
+			<group title="Command line interface packages" packages="de.uniba.wiai.lspi.chord.console:de.uniba.wiai.lspi.chord.console.*"/>
+			<group title="Communication logic packages" packages="de.uniba.wiai.lspi.chord.com:de.uniba.wiai.lspi.chord.com.*"/>
+			<group title="Utility packages" packages="de.uniba.wiai.lspi.chord.data:de.uniba.wiai.lspi.util:de.uniba.wiai.lspi.util.*"/>
+			<link href="http://java.sun.com/j2se/1.5.0/docs/api/"/>
+		</javadoc>
+	</target>
+
+	<target name="main" depends="compile"/>
+</project>  

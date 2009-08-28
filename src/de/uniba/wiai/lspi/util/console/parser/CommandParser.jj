@@ -1,0 +1,139 @@
+/***************************************************************************
+ *                                                                         *
+ *                              CommandParser.jj                           *
+ *                            -------------------                          *
+ *   date                 : 17. Mai 2004, 15:11                            *
+ *   copyright            : (C) 2004 Distributed and Mobile Systems Group  *
+ *                              Lehrstuhl fuer Praktische Informatik       *
+ *                              Universitaet Bamberg                       *
+ *                              http://www.uni-bamberg.de/pi               *
+ *   email                : sven.kaffille@uni-bamberg.de                   *
+ *                                                                         *
+ *                                                                         *
+ ***************************************************************************/
+
+/***************************************************************************
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   A copy of the license can be found in the license.txt file supplied   *
+ *   with this software or at: http://www.gnu.org/copyleft/gpl.html        *
+ *                                                                         *
+ ***************************************************************************/
+
+options {
+  LOOKAHEAD = 3;
+  CHOICE_AMBIGUITY_CHECK = 2;
+  OTHER_AMBIGUITY_CHECK = 1;
+  STATIC = false;
+  DEBUG_PARSER = false;
+  DEBUG_LOOKAHEAD = false;
+  DEBUG_TOKEN_MANAGER = false;
+  ERROR_REPORTING = true;
+  JAVA_UNICODE_ESCAPE = false;
+  UNICODE_INPUT = false;
+  IGNORE_CASE = false;
+  USER_TOKEN_MANAGER = false;
+  USER_CHAR_STREAM = false;
+  BUILD_PARSER = true;
+  BUILD_TOKEN_MANAGER = true;
+  SANITY_CHECK = true;
+  FORCE_LA_CHECK = false;
+}
+
+PARSER_BEGIN(CommandParser)
+
+package de.uniba.wiai.lspi.util.console.parser;
+
+import java.io.*;
+
+public class CommandParser {
+	 
+        
+        public static String parse(String toParse) throws ParseException{
+            StringReader reader = new StringReader(toParse);
+            CommandParser parser = new CommandParser(reader);
+            String command = parser.command();
+	    return command;
+        }
+	
+	public static java.util.Hashtable parseParams(String toParse) throws ParseException{
+		StringReader reader = new StringReader(toParse);
+		CommandParser parser = new CommandParser(reader);
+		return parser.parameters();
+	}
+        
+}
+
+PARSER_END(CommandParser)
+
+SKIP :
+{
+" "
+| "\t"
+| "\n"
+| "\r"
+
+}
+
+TOKEN :
+{	
+	< PARAMSTART: "-" >
+|       < WORD: (<LETTER>)+ >
+|	< #LETTER: ["_", "@", ".", "a"-"z", "A"-"Z", "0"-"9", ":", "/"] >
+}
+
+String command():
+{	
+	String commandName = "";
+	Token token;
+}
+{
+	token = <WORD> (<PARAMSTART> <WORD> <WORD> | <PARAMSTART> <WORD>)+
+	{
+		commandName = token.image;
+		return commandName;
+	}
+      | token = <WORD>
+      	{
+		commandName = token.image;
+		return commandName;
+	}
+}
+
+java.util.Hashtable parameters():
+{
+	java.util.Hashtable p = new java.util.Hashtable();
+	int index = 0;
+	String ps[][] = new String[100][2];
+	Token t;
+}
+{
+	t=<WORD>  
+	( <PARAMSTART>
+	  t = <WORD>
+	  	{ ps[index][0]=t.image; }
+	  t = <WORD>
+	  	{ ps[index++][1]=t.image; }
+	 
+	 | <PARAMSTART>
+	   t= <WORD>
+	 	{ps[index++][0]=t.image;} 
+	 )+
+	 
+	 	{for (int i = 0; i < index; i++){
+			String pn = ps[i][0];
+			String pv = "";
+			if (ps[i][1] != null){
+				pv = ps[i][1];
+			}
+			p.put(pn, pv);
+		}
+		return p;
+		}
+	| t = <WORD>
+		{return p;}
+}
