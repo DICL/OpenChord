@@ -69,6 +69,6 @@ public class CommunicationException extends Exception {
 		super(message, cause);
 	}
 
-	// änderung
+	// Ã¤nderung
 
 }
