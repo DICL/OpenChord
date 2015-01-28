@@ -1,1 +1,1 @@
-java -cp .:../build/classes:../config:../lib/log4j.jar de.uniba.wiai.lspi.chord.console.Main *
+java -cp .:../build/classes:../config:../lib/log4j.jar de.uniba.wiai.lspi.chord.console.Main
