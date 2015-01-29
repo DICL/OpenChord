@@ -1,3 +1,5 @@
+package eclipse;
+
 import de.uniba.wiai.lspi.chord.service.Chord;
 import de.uniba.wiai.lspi.chord.service.PropertiesLoader;
 import de.uniba.wiai.lspi.chord.service.impl.ChordImpl;
