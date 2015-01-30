@@ -8,7 +8,7 @@ import de.uniba.wiai.lspi.chord.data.URL;
 
 import java.net.MalformedURLException;
 
-public class Launcher {
+public class Create {
   public static void main (String[] args) {
     PropertiesLoader.loadPropertyFile();
     String protocol = URL.KNOWN_PROTOCOLS.get(URL.SOCKET_PROTOCOL);

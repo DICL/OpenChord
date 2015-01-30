@@ -35,8 +35,8 @@ public class Insert {
     }
 
     //Insert data
-    String data = "Just an example." ;
-    StringKey myKey = new StringKey (data) ;
+    String data = args[0];
+    StringKey myKey = new StringKey (args[1]) ;
     try {
       chord.insert (myKey , data) ;
     } catch (ServiceException e) {
