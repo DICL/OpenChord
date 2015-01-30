@@ -24,11 +24,13 @@ public class Retrieve {
     }
 
     URL bootstrapURL = null;
+
     try {
       bootstrapURL = new URL (protocol + "://localhost:8080/") ;
     } catch (MalformedURLException e) {
       throw new RuntimeException (e) ;
     }
+
     Chord chord = new ChordImpl();
 
     try {
