@@ -1,34 +1,35 @@
 #!/usr/bin/env ruby
+# vim : ft=ruby : fileencoding=utf-8 :
 
-print_help = Proc.new { puts <<EOF
+require 'colored'
+
+HELP = <<EOF
 use `$ ochord [option] [arg1] [arg2]`
 Here are the availible options
 ==============================
-   - create         Create OpenChord network
-   - join           Join OpenChord network
-   - insert         Insert the given data (arg1, arg2 required)
-   - delete         Delete the entry of the given key (arg1 required)
-   - retrieve       Retrieve the entry of the given key (arg1 required)
+   - #{"create".red}        Create OpenChord network
+   - #{"join".red}          Join OpenChord network
+   - #{"insert".red}        Insert the given data (arg1, arg2 required)
+   - #{"delete".red}        Delete the entry of the given key (arg1 required)
+   - #{"retrieve".red}      Retrieve the entry of the given key (arg1 required)
 EOF
-exit }
+
 
 javacmd = "java -cp .:../build/classes:../config:../lib/log4j.jar"
 hash_parser = {
-  'create'   => "eclipse.Create",
-  'join'     => "eclipse.Join",
-  'insert'   => "eclipse.Insert #{ARGV[1]} #{ARGV[2]}",
-  'delete'   => "eclipse.Delete #{ARGV[1]}",
-  'retrieve' => "eclipse.Retrieve #{ARGV[1]}"
+  :create   => "eclipse.Create",
+  :join     => "eclipse.Join",
+  :insert   => "eclipse.Insert #{ARGV[1]} #{ARGV[2]}",
+  :delete   => "eclipse.Delete #{ARGV[1]}",
+  :retrieve => "eclipse.Retrieve #{ARGV[1]}"
 }
 
-Signal.trap("INT") { # Create routine to close the network
-  puts "Finishing " 
+Signal.trap("INT") { |signo| # Create routine to close the network
+  puts "Signal <#{Signal.signame(signo)}> caught, finishing..."
 }
 
-print_help.call if not javaargv = hash_parser[ARGV[0]]
+(puts HELP; exit) if not ARGV[0] or not javaargv = hash_parser[ARGV[0].intern]
 
 puts "Running OpenChord with those args: #{javacmd} #{javaargv}"
 
 `#{javacmd} #{javaargv}`
-
-# vim : ft=ruby :
