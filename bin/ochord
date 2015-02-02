@@ -1,0 +1,34 @@
+#!/usr/bin/env ruby
+
+print_help = Proc.new { puts <<EOF
+use `$ ochord [option] [arg1] [arg2]`
+Here are the availible options
+==============================
+   - create         Create OpenChord network
+   - join           Join OpenChord network
+   - insert         Insert the given data (arg1, arg2 required)
+   - delete         Delete the entry of the given key (arg1 required)
+   - retrieve       Retrieve the entry of the given key (arg1 required)
+EOF
+exit }
+
+javacmd = "java -cp .:../build/classes:../config:../lib/log4j.jar"
+hash_parser = {
+  'create'   => "eclipse.Create",
+  'join'     => "eclipse.Join",
+  'insert'   => "eclipse.Insert #{ARGV[1]} #{ARGV[2]}",
+  'delete'   => "eclipse.Delete #{ARGV[1]}",
+  'retrieve' => "eclipse.Retrieve #{ARGV[1]}"
+}
+
+Signal.trap("INT") { # Create routine to close the network
+  puts "Finishing " 
+}
+
+print_help.call if not javaargv = hash_parser[ARGV[0]]
+
+puts "Running OpenChord with those args: #{javacmd} #{javaargv}"
+
+`#{javacmd} #{javaargv}`
+
+# vim : ft=ruby :
