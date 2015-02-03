@@ -1,10 +1,10 @@
 #!/usr/bin/env ruby
 # vim : ft=ruby : fileencoding=utf-8 :
-
 require 'colored'
+require 'json'
 
 HELP = <<EOF
-use `$ ochord [option] [arg1] [arg2]`
+use `ochord [option] [arg1] [arg2]`
 Here are the availible options
 ==============================
    - #{"create".red}        Create OpenChord network
@@ -14,22 +14,49 @@ Here are the availible options
    - #{"retrieve".red}      Retrieve the entry of the given key (arg1 required)
 EOF
 
+class Launcher
+  @@javacmd = "java -cp .:../build/classes:../config:../lib/log4j.jar"
+  @@chordcmd = {
+    :create   => "#{@@javacmd} eclipse.Create",
+    :join     => "#{@@javacmd} eclipse.Join",
+    :insert   => "#{@@javacmd} eclipse.Insert",
+    :delete   => "#{@@javacmd} eclipse.Delete",
+    :retrieve => "#{@@javacmd} eclipse.Retrieve"
+  }
 
-javacmd = "java -cp .:../build/classes:../config:../lib/log4j.jar"
-hash_parser = {
-  :create   => "eclipse.Create",
-  :join     => "eclipse.Join",
-  :insert   => "eclipse.Insert #{ARGV[1]} #{ARGV[2]}",
-  :delete   => "eclipse.Delete #{ARGV[1]}",
-  :retrieve => "eclipse.Retrieve #{ARGV[1]}"
-}
+  def initialize(argv, filepath = nil)
+    Signal.trap("INT") { |signo| puts "Signal <#{Signal.signame(signo)}> caught, finishing..." }
+    parse_args(argv)
 
-Signal.trap("INT") { |signo| # Create routine to close the network
-  puts "Signal <#{Signal.signame(signo)}> caught, finishing..."
-}
+    return unless filepath 
+    content = File.open(filepath, 'rb').read
+    @nodelist = JSON.parse(content)
+  end
 
-(puts HELP; exit) if not ARGV[0] or not javaargv = hash_parser[ARGV[0].intern]
+  def parse_args(args)
+    (print HELP; exit) if not ARGV[0] or not @javaargv = @@chordcmd[ARGV[0].to_sym]
+    puts "Running OpenChord with those args: #{@@javacmd} #{@javaargv}"
+  end
 
-puts "Running OpenChord with those args: #{javacmd} #{javaargv}"
+  def open()
+    `ssh #{@nodelist['master']} #{@@chordcmd[:create]} &`  # Run master
+    order @@chordcmd[:join] + " " + @nodelist['master']
+    puts "--------------Network Created-----------------"
+  end 
 
-`#{javacmd} #{javaargv}`
+  def close()
+    `ssh #{@nodelist['master']} #{@@chordcmd[:close]} &`  # Run master
+    order @@chordcmd[:close]
+    puts "--------------Network Close-------------------"
+  end 
+
+  def order(command)
+    @nodelist['nodes'].each { |node| `ssh #{node} #{command} &` }
+  end
+
+  def run()
+    `#{@javaargv}`
+  end
+end
+
+Launcher.new(ARGV).run
