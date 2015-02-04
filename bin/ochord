@@ -15,14 +15,17 @@ Here are the availible options
 EOF
 
 class Launcher
-  @@javacmd = "java -cp .:../build/classes:../config:../lib/log4j.jar"
   @@chordcmd = {
-    :create   => "#{@@javacmd} eclipse.Create",
-    :join     => "#{@@javacmd} eclipse.Join",
-    :insert   => "#{@@javacmd} eclipse.Insert",
-    :delete   => "#{@@javacmd} eclipse.Delete",
-    :retrieve => "#{@@javacmd} eclipse.Retrieve"
+    :create   => "eclipse.Create",
+    :join     => "eclipse.Join",
+    :insert   => "eclipse.Insert",
+    :delete   => "eclipse.Delete",
+    :retrieve => "eclipse.Retrieve"
   }
+
+  @@chordcmd.each do |k,str| 
+    @@chordcmd[k] = "java -cp .:../build/classes:../config:../lib/log4j.jar #{str}" 
+  end 
 
   def initialize(argv, filepath = nil)
     Signal.trap("INT") { |signo| puts "Signal <#{Signal.signame(signo)}> caught, finishing..." }
@@ -35,7 +38,7 @@ class Launcher
 
   def parse_args(args)
     (print HELP; exit) if not ARGV[0] or not @javaargv = @@chordcmd[ARGV[0].to_sym]
-    puts "Running OpenChord with those args: #{@@javacmd} #{@javaargv}"
+    puts "Running OpenChord: #{@javaargv}"
   end
 
   def open()
@@ -46,12 +49,20 @@ class Launcher
 
   def close()
     `ssh #{@nodelist['master']} #{@@chordcmd[:close]} &`  # Run master
-    order @@chordcmd[:close]
+    order(@@chordcmd[:close]).map(:join)
     puts "--------------Network Close-------------------"
   end 
 
   def order(command)
-    @nodelist['nodes'].each { |node| `ssh #{node} #{command} &` }
+    threadpool = Array.new
+    @nodelist['nodes'].each do |node|
+      threadpool.push Thread.new { `ssh #{node} #{command} &` }
+    end
+    threadpool
+  end
+
+  def join(tp)
+    tp.map(&:join)
   end
 
   def run()
@@ -59,4 +70,4 @@ class Launcher
   end
 end
 
-Launcher.new(ARGV).run
+Launcher.new(ARGV, "/home/vicente/Eclipse/build/etc/eclipse.json").run
