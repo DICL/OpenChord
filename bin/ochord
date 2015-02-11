@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 # vim : ft=ruby : fileencoding=utf-8 :
+# Header {{{
 require 'colored'
 require 'json'
 
@@ -12,9 +13,12 @@ Here are the availible options
    - #{"insert".red}        Insert the given data (arg1, arg2 required)
    - #{"delete".red}        Delete the entry of the given key (arg1 required)
    - #{"retrieve".red}      Retrieve the entry of the given key (arg1 required)
+   - #{"info".red}          Print out useful variables
 EOF
 
+#}}}
 class Launcher
+  # Variables {{{
   @@chordcmd = {
     :create   => "eclipse.Create",
     :join     => "eclipse.Join",
@@ -23,35 +27,45 @@ class Launcher
     :retrieve => "eclipse.Retrieve"
   }
 
-  @@chordcmd.each do |k,str| 
-    @@chordcmd[k] = "java -cp .:../build/classes:../config:../lib/log4j.jar #{str}" 
-  end 
+  @@chordcmd = Hash[@@chordcmd.map do |k,str| 
+    [k, "java -cp .:../build/classes:../config:../lib/log4j.jar #{str}"]
+  end]
 
-  def initialize(argv, filepath = nil)
+  @@methods = {
+    :create =>    -> do 
+      `ssh #{@nodelist['master_address']} #{@@chordcmd[:create]} &`  # Run master
+      order @@chordcmd[:join] + " " + @nodelist['master_address']
+      puts "--------------Network Created-----------------"
+    end,
+    :close =>     -> do 
+      `ssh #{@nodelist['master_address']} #{@@chordcmd[:close]} &`  # Run master
+      order(@@chordcmd[:close]).map(:join)
+      puts "--------------Network Close-------------------"
+    end,
+    :insert =>   -> (key, val) do
+
+    end,
+    :delete =>   -> (key) do
+
+    end,
+    :retrieve => -> (val) do 
+
+    end,
+    :info =>     -> do
+      require 'awesome_print'
+      ap @nodelist 
+    end
+  } 
+  #}}} -------------------------------------------------------------------
+  def initialize(argv, filepath)
     Signal.trap("INT") { |signo| puts "Signal <#{Signal.signame(signo)}> caught, finishing..." }
-    parse_args(argv)
+    f = File.open(filepath, 'rb')
+    @nodelist = JSON.parse(f.read)
+    f.close
 
-    return unless filepath 
-    content = File.open(filepath, 'rb').read
-    @nodelist = JSON.parse(content)
+    (print HELP; exit) unless argv.any? and @@methods.include?(argv[0].to_sym)
+    instance_exec(&@@methods[ARGV[0].to_sym])
   end
-
-  def parse_args(args)
-    (print HELP; exit) if not ARGV[0] or not @javaargv = @@chordcmd[ARGV[0].to_sym]
-    puts "Running OpenChord: #{@javaargv}"
-  end
-
-  def open()
-    `ssh #{@nodelist['master']} #{@@chordcmd[:create]} &`  # Run master
-    order @@chordcmd[:join] + " " + @nodelist['master']
-    puts "--------------Network Created-----------------"
-  end 
-
-  def close()
-    `ssh #{@nodelist['master']} #{@@chordcmd[:close]} &`  # Run master
-    order(@@chordcmd[:close]).map(:join)
-    puts "--------------Network Close-------------------"
-  end 
 
   def order(command)
     threadpool = Array.new
@@ -64,10 +78,7 @@ class Launcher
   def join(tp)
     tp.map(&:join)
   end
-
-  def run()
-    `#{@javaargv}`
-  end
 end
 
-Launcher.new(ARGV, "/home/vicente/Eclipse/build/etc/eclipse.json").run
+raise 'ECLIPSE_PATH env variable is not defined' unless ENV["ECLIPSE_PATH"]
+Launcher.new(ARGV, ENV["ECLIPSE_PATH"] + "/etc/eclipse.json")

@@ -15,7 +15,10 @@ public class Create {
     URL localURL = null;
 
     try {
-      localURL = new URL(protocol + "://localhost:8080/");
+      if (args.length() = 0) 
+        localURL = new URL(protocol + "://localhost:8080/");
+      else 
+        localURL = new URL(protocol + "://" + args + ":8080/");
 
     } catch (MalformedURLException e ) {
       throw new RuntimeException(e);
@@ -25,7 +28,7 @@ public class Create {
 
     try {
       chord.create(localURL);
-      
+
     } catch (ServiceException e) {
       throw new RuntimeException("Could not create DHT!", e);
     }
