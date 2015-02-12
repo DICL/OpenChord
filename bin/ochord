@@ -29,45 +29,18 @@ class Launcher
 
   @@chordcmd = Hash[@@chordcmd.map do |k,str| 
     [k, "java -cp .:../build/classes:../config:../lib/log4j.jar #{str}"]
-  end]
+  end] #}}} -------------------------------------------------------------------
 
-  @@methods = {
-    :create =>    -> do 
-      `ssh #{@nodelist['master_address']} #{@@chordcmd[:create]} &`  # Run master
-      order @@chordcmd[:join] + " " + @nodelist['master_address']
-      puts "--------------Network Created-----------------"
-    end,
-    :close =>     -> do 
-      `ssh #{@nodelist['master_address']} #{@@chordcmd[:close]} &`  # Run master
-      order(@@chordcmd[:close]).map(:join)
-      puts "--------------Network Close-------------------"
-    end,
-    :insert =>   -> (key, val) do
-
-    end,
-    :delete =>   -> (key) do
-
-    end,
-    :retrieve => -> (val) do 
-
-    end,
-    :info =>     -> do
-      require 'awesome_print'
-      ap @nodelist 
-    end
-  } 
-  #}}} -------------------------------------------------------------------
-  def initialize(argv, filepath)
+  def initialize (argv, filepath)
     Signal.trap("INT") { |signo| puts "Signal <#{Signal.signame(signo)}> caught, finishing..." }
     f = File.open(filepath, 'rb')
     @nodelist = JSON.parse(f.read)
     f.close
 
-    (print HELP; exit) unless argv.any? and @@methods.include?(argv[0].to_sym)
-    instance_exec(&@@methods[ARGV[0].to_sym])
+    (print HELP; exit) unless argv.any? and send argv[0]
   end
 
-  def order(command)
+  def order (command)
     threadpool = Array.new
     @nodelist['nodes'].each do |node|
       threadpool.push Thread.new { `ssh #{node} #{command} &` }
@@ -75,9 +48,27 @@ class Launcher
     threadpool
   end
 
-  def join(tp)
+  def join (tp)
     tp.map(&:join)
   end
+
+  def info
+    require 'awesome_print'
+    ap @nodelist 
+  end
+
+  def close
+    `ssh #{@nodelist['master_address']} #{@@chordcmd[:close]} &`  # Run master
+    order(@@chordcmd[:close]).map(:join)
+    puts "--------------Network Close-------------------"
+  end
+
+  def create
+    `ssh #{@nodelist['master_address']} #{@@chordcmd[:create]} &`  # Run master
+    order @@chordcmd[:join] + " " + @nodelist['master_address']
+    puts "--------------Network Created-----------------"
+  end
+
 end
 
 raise 'ECLIPSE_PATH env variable is not defined' unless ENV["ECLIPSE_PATH"]

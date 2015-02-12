@@ -15,7 +15,7 @@ public class Create {
     URL localURL = null;
 
     try {
-      if (args.length() = 0) 
+      if (args.length == 0) 
         localURL = new URL(protocol + "://localhost:8080/");
       else 
         localURL = new URL(protocol + "://" + args + ":8080/");
