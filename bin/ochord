@@ -1,49 +1,48 @@
 #!/usr/bin/env ruby
-# vim : ft=ruby : fileencoding=utf-8 :
-# Header {{{
+# vim: ft=ruby : fileencoding=utf-8 : foldmethod=syntax : foldlevel=1 : foldnestmax=2
 require 'colored'
 require 'json'
 
-HELP = <<EOF
+class Launcher
+  HELP = <<-EOF
 use `ochord [option] [arg1] [arg2]`
-Here are the availible options
+Here are the available options
 ==============================
-   - #{"create".red}        Create OpenChord network
-   - #{"join".red}          Join OpenChord network
-   - #{"insert".red}        Insert the given data (arg1, arg2 required)
-   - #{"delete".red}        Delete the entry of the given key (arg1 required)
-   - #{"retrieve".red}      Retrieve the entry of the given key (arg1 required)
-   - #{"info".red}          Print out useful variables
+  #{[ ["create".red    , "Create OpenChord network"]                            ,
+  ["join".red      , "Join OpenChord network"]                              ,
+    ["insert".red    , "Insert the given data (arg1, arg2 required)"]         ,
+    ["delete".red    , "Delete the entry of the given key (arg1 required)"]   ,
+    ["retrieve".red  , "Retrieve the entry of the given key (arg1 required)"] ,
+    ["info".green    , "Print out useful variables"]                          ,
+    ["quiet".green   , "do not printout anything"]                            ,
+    ["help".green    , "this"] ]
+  .map { |item| "%20.20s  %-60.60s\n" % [item[0], item[1]] }.join }
 EOF
 
-#}}}
-class Launcher
-  # Variables {{{
-  @@chordcmd = {
-    :create   => "eclipse.Create",
-    :join     => "eclipse.Join",
-    :insert   => "eclipse.Insert",
-    :delete   => "eclipse.Delete",
-    :retrieve => "eclipse.Retrieve"
-  }
-
-  @@chordcmd = Hash[@@chordcmd.map do |k,str| 
-    [k, "java -cp .:../build/classes:../config:../lib/log4j.jar #{str}"]
-  end] #}}} -------------------------------------------------------------------
+  @@chordcmd = %w[create join insert delete retrieve].map do |str| 
+    [str.to_sym, "java -cp .:../build/classes:../config:../lib/log4j.jar eclipse.#{str.capitalize}"]
+  end.to_h
 
   def initialize (argv, filepath)
     Signal.trap("INT") { |signo| puts "Signal <#{Signal.signame(signo)}> caught, finishing..." }
-    f = File.open(filepath, 'rb')
-    @nodelist = JSON.parse(f.read)
-    f.close
+    @pidlist = {}
+    begin
+      f = File.open(filepath, 'rb')
+      @nodelist = JSON.parse(f.read)
+    rescue
+      $stderr.puts "File not found, change filepath".red
+      print HELP
+      exit
+    end
 
+    f.close
     (print HELP; exit) unless argv.any? and send argv[0]
   end
 
   def order (command)
     threadpool = Array.new
     @nodelist['nodes'].each do |node|
-      threadpool.push Thread.new { `ssh #{node} #{command} &` }
+      threadpool.push Thread.new { `ssh #{node} #{command} &`; @pidlist[node] = $?.pid }
     end
     threadpool
   end
@@ -68,7 +67,6 @@ class Launcher
     order @@chordcmd[:join] + " " + @nodelist['master_address']
     puts "--------------Network Created-----------------"
   end
-
 end
 
 raise 'ECLIPSE_PATH env variable is not defined' unless ENV["ECLIPSE_PATH"]

@@ -15,7 +15,7 @@ public class Insert {
     URL localURL = null;
 
     try {
-      localURL = new URL(protocol + "://localhost:8080/");
+      localURL = new URL(protocol + "://localhost:8081/");
 
     } catch (MalformedURLException e ) {
       throw new RuntimeException(e);
@@ -23,7 +23,7 @@ public class Insert {
 
     URL bootstrapURL = null;
     try {
-      bootstrapURL = new URL (protocol + "://localhost:8080/") ;
+      bootstrapURL = new URL (protocol + "://localhost:8080/");
     } catch (MalformedURLException e) {
       throw new RuntimeException (e) ;
     }
@@ -40,7 +40,7 @@ public class Insert {
     try {
       chord.insert (myKey , data) ;
     } catch (ServiceException e) {
-      // handle exception
+      System.err.println ("insertion failed");
     }
   }
 } 

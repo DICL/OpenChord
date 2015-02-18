@@ -28,6 +28,7 @@ public class Create {
 
     try {
       chord.create(localURL);
+      System.out.println ("OpenChord network created at " );
 
     } catch (ServiceException e) {
       throw new RuntimeException("Could not create DHT!", e);
