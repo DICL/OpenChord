@@ -3,13 +3,17 @@
 require 'colored'
 require 'json'
 
+class String
+  def warnout; warn self; end; 
+end
+
 class Launcher
   HELP = <<-EOF
 use `ochord [option] [arg1] [arg2]`
 Here are the available options
 ==============================
-  #{[ ["create".red    , "Create OpenChord network"]                            ,
-  ["join".red      , "Join OpenChord network"]                              ,
+#{[ ["create".red    , "Create OpenChord network"]                            ,
+    ["join".red      , "Join OpenChord network"]                              ,
     ["insert".red    , "Insert the given data (arg1, arg2 required)"]         ,
     ["delete".red    , "Delete the entry of the given key (arg1 required)"]   ,
     ["retrieve".red  , "Retrieve the entry of the given key (arg1 required)"] ,
@@ -19,24 +23,28 @@ Here are the available options
   .map { |item| "%20.20s  %-60.60s\n" % [item[0], item[1]] }.join }
 EOF
 
-  @@chordcmd = %w[create join insert delete retrieve].map do |str| 
-    [str.to_sym, "java -cp .:../build/classes:../config:../lib/log4j.jar eclipse.#{str.capitalize}"]
-  end.to_h
-
-  def initialize (argv, filepath)
+  def initialize argv:, filepath:
     Signal.trap("INT") { |signo| puts "Signal <#{Signal.signame(signo)}> caught, finishing..." }
-    @pidlist = {}
-    begin
-      f = File.open(filepath, 'rb')
-      @nodelist = JSON.parse(f.read)
-    rescue
-      $stderr.puts "File not found, change filepath".red
-      print HELP
-      exit
-    end
 
+    # Create the dictionary to call the OpenChord routines
+    @@chordcmd = %i[create join insert delete retrieve].map do |k| 
+      [k, "java -cp .:../build/classes:../config:../lib/log4j.jar eclipse.#{k.to_s.capitalize}"]
+    end.to_h
+
+    # Load configuration JSON file
+    f = File.open(filepath, 'rb')
+    @nodelist = JSON.parse(f.read)
     f.close
-    (print HELP; exit) unless argv.any? and send argv[0]
+
+    # Run the commands
+    fail unless argv.any? 
+    send argv[0]
+
+  rescue => e
+    { "Errno::ENOENT" => "File not found, change filepath",
+      "NoMethodError" => "Wrong options passed to the program",
+      "RuntimeError"  => "Not given option" } [e.class.name].red.warnout
+    abort HELP
   end
 
   def order (command)
@@ -53,7 +61,8 @@ EOF
 
   def info
     require 'awesome_print'
-    ap @nodelist 
+    ap @nodelist
+    ap @@chordcmd
   end
 
   def close
@@ -70,4 +79,5 @@ EOF
 end
 
 raise 'ECLIPSE_PATH env variable is not defined' unless ENV["ECLIPSE_PATH"]
-Launcher.new(ARGV, ENV["ECLIPSE_PATH"] + "/etc/eclipse.json")
+Launcher.new  argv: ARGV, 
+              filepath: ENV["ECLIPSE_PATH"] + "/etc/eclipse.json"
