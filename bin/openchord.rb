@@ -3,6 +3,7 @@
 require 'colored'
 require 'json'
 require 'awesome_print'
+require 'pry'
 
 module OpenChord
   class ::String
@@ -29,44 +30,69 @@ EOF
       Signal.trap("INT") { |signo| puts "Signal <#{Signal.signame(signo)}> caught, finishing..." }
   
       # Create the dictionary to call the OpenChord routines
-      @@chordcmd = %i[create join insert delete retrieve].map do |k| 
-        [k, "java -cp /home/vicente/OpenChord/:/home/vicente/OpenChord/build/classes:/home/vicente/OpenChord/config:/home/vicente/OpenChord/lib/log4j.jar eclipse.#{k.to_s.capitalize}"]
+      @@chordcmd = %i[create join].map do |k| 
+        [k, "java -jar /home/vicente/OpenChord/dist/#{k.to_s.capitalize}.jar"]
       end.to_h
-  
+      @pidlist = {}
+
       # Load configuration JSON file
       File.open(filepath, 'rb') { |f| @nodelist = JSON.parse(f.read) }
   
       # Run the commands
       fail unless argv.any? 
-      send argv[0]
+      if argv.length > 1
+        send argv.first, [argv[1], argv[2]]             # Case for inserting
+      else              
+        send argv.first                                 # Case for creating or join
+      end
   
     rescue => e
       ( { "Errno::ENOENT" => "File not found, change filepath",
           "NoMethodError" => "Wrong options passed to the program",
           "RuntimeError"  => "Not given option"} [e.class.name] or "#{e.backtrace}").red.warnout
+      binding.pry
       abort HELP
     end
 
     def info; ap @nodelist; end
+
+    def info_pid
+      ap File.open('.pidlist', 'r') { |f| JSON.parse(f.read) }
+    end
   
+    def insert (inp)
+      key   = inp[0]
+      value = inp[1]
+      fail "No instance of openchord runinng" unless File.exist? '.pidlist'
+
+      @pidlist = File.open('.pidlist', 'r') { |f| JSON.parse(f.read) }
+      `echo '#{key} #{value}' > /proc/#{@pidlist['master']}/fd/0`
+      warn "Problem inserting" unless $?.exited?
+    end
+
     def order (command)
       @nodelist['nodes'].each do |node|
-         @pidlist[node] = `ssh #{node} #{command} &> /dev/null & echo $$`
+        @pidlist[node] = `ssh #{node} bash -c \' #{command} & echo $! \'`.chomp
       end
     end
   
     def close
-      `ssh #{@nodelist['master_address']} #{@@chordcmd[:close]} &`  # Run master
-      order(@@chordcmd[:close])
+      #`ssh #{@nodelist['master_address']} #{@@chordcmd[:close]} &`  # Run master
+      @pidlist= File.open('.pidlist', 'r') { |f| JSON.parse(f.read) }
+      `kill #{@pidlist['master']}`
+      @nodelist['nodes'].each do |node|
+        `ssh #{node} kill #{@pidlist[node]}` 
+      end
       puts "--------------Network Close-------------------"
     end
   
     def create
-      @pidlist = `#{@@chordcmd[:create]} #{@nodelist['master_address']} &> /dev/null & echo $$`  # Run master
+      @pidlist['master'] = `#{@@chordcmd[:create]} #{@nodelist['master_address']} &> /dev/null & echo $!`.chomp  # Run master
       order @@chordcmd[:join] + " " + @nodelist['master_address']
 
       File.open('.pidlist', 'w') { |f| f.write JSON.generate(@pidlist) }
       puts "--------------Network Created-----------------"
+      ap @pidlist
     end
   end
 end 
