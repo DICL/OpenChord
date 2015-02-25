@@ -78,11 +78,13 @@ EOF
     end
   
     def close
-      @pidlist= File.open('.pidlist', 'r') { |f| JSON.parse(f.read) }
-      `kill #{@pidlist['master']}`
-      @nodelist['nodes'].each do |node|
+      @pidlist= File.open('.pidlist', 'r') { |f| JSON.parse(f.read) }  # Assert that we have a pidfile
+      `kill #{@pidlist['master']}`                                     # kill master
+
+      @nodelist['nodes'].each do |node|                                # Kill for each of the nodes
         `ssh #{node} kill #{@pidlist[node]}` 
       end
+
       File.delete('.pidlist')
       puts "--------------Network Close-------------------"
     end
