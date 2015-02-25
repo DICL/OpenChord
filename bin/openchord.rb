@@ -72,17 +72,18 @@ EOF
 
     def order (command)
       @nodelist['nodes'].each do |node|
-        @pidlist[node] = `ssh #{node} bash -c \' #{command} & echo $! \'`.chomp
+        print "ssh #{node} ' #{command} & echo $! ' \n"
+        @pidlist[node] = `ssh #{node} '#{command} &>/dev/null & echo $!' `.chomp
       end
     end
   
     def close
-      #`ssh #{@nodelist['master_address']} #{@@chordcmd[:close]} &`  # Run master
       @pidlist= File.open('.pidlist', 'r') { |f| JSON.parse(f.read) }
       `kill #{@pidlist['master']}`
       @nodelist['nodes'].each do |node|
         `ssh #{node} kill #{@pidlist[node]}` 
       end
+      File.delete('.pidlist')
       puts "--------------Network Close-------------------"
     end
   
