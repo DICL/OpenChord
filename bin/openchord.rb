@@ -1,16 +1,17 @@
 #!/usr/bin/env ruby
-# vim: ft=ruby : fileencoding=utf-8 : foldmethod=syntax : foldlevel=2 : foldnestmax=3
+# vim: ft=ruby : fileencoding=utf-8 : foldmethod=marker
 require 'colored'
 require 'json'
 require 'awesome_print'
 require 'pry'
 
 module OpenChord
-  class ::String
+  class ::String #{{{
     def warnout; warn self; end; 
-  end
+  end #}}}
   
   class Launcher
+    #{{{
     HELP = <<-EOF
 use `ochord [option] [arg1] [arg2]`
 Here are the available options
@@ -26,10 +27,13 @@ Here are the available options
   .map { |item| "%20.20s  %-60.60s\n" % [item[0], item[1]] }.join }
 EOF
   
-    def initialize argv:, filepath:
-      Signal.trap("INT") { |signo| puts "Signal <#{Signal.signame(signo)}> caught, finishing..." }
-  
+    # }}} 
+    # initialize {{{
+    #
+    #
+    def initialize argv:, filepath: 
       # Create the dictionary to call the OpenChord routines
+      # Overkill right? but it was supposed to have many elements at the beginning
       @@chordcmd = %i[create join].map do |k| 
         [k, "java -jar /home/vicente/OpenChord/dist/#{k.to_s.capitalize}.jar"]
       end.to_h
@@ -39,30 +43,33 @@ EOF
       File.open(filepath, 'rb') { |f| @nodelist = JSON.parse(f.read) }
   
       # Run the commands
-      fail unless argv.any? 
-      if argv.length > 1
-        send argv.first, [argv[1], argv[2]]             # Case for inserting
+      fail "No commands specified" unless argv.any? 
+      if argv.first == "insert"
+        insert key: argv[1], value: argv[2]             # Case for inserting
       else              
         send argv.first                                 # Case for creating or join
       end
   
     rescue => e
       ( { "Errno::ENOENT" => "File not found, change filepath",
-          "NoMethodError" => "Wrong options passed to the program",
-          "RuntimeError"  => "Not given option"} [e.class.name] or "#{e.backtrace}").red.warnout
-      binding.pry
+          "NoMethodError" => "Wrong options passed to the program" 
+      } [e.class.name] or e.message).red.warnout
+#      binding.pry
       abort HELP
     end
 
-    def info; ap @nodelist; end
-
-    def info_pid
-      ap File.open('.pidlist', 'r') { |f| JSON.parse(f.read) }
+    # }}} 
+    # info {{{
+    def info 
+      ap File.open('.pidlist', 'r') { |f| JSON.parse(f.read) } if File.exist? '.pidlist'
+      ap @nodelist
     end
-  
-    def insert (inp)
-      key   = inp[0]
-      value = inp[1]
+
+    ## }}}
+    #  insert {{{
+    #  Many harcoded things :TODO:
+    #
+    def insert key:, value:
       fail "No instance of openchord runinng" unless File.exist? '.pidlist'
 
       @pidlist = File.open('.pidlist', 'r') { |f| JSON.parse(f.read) }
@@ -70,28 +77,30 @@ EOF
       warn "Problem inserting" unless $?.exited?
     end
 
-    def order (command)
-      @nodelist['nodes'].each do |node|
-        print "ssh #{node} ' #{command} & echo $! ' \n"
-        @pidlist[node] = `ssh #{node} '#{command} &>/dev/null & echo $!' `.chomp
-      end
-    end
-  
+    # }}}
+    # close {{{
+    #
     def close
       @pidlist= File.open('.pidlist', 'r') { |f| JSON.parse(f.read) }  # Assert that we have a pidfile
-      `kill #{@pidlist['master']}`                                     # kill master
 
+      `kill #{@pidlist['master']}`                                     # Kill master
       @nodelist['nodes'].each do |node|                                # Kill for each of the nodes
         `ssh #{node} kill #{@pidlist[node]}` 
       end
 
-      File.delete('.pidlist')
+      File.delete '.pidlist'
       puts "--------------Network Close-------------------"
     end
   
+    # }}}
+    # create {{{
+    #
     def create
       @pidlist['master'] = `#{@@chordcmd[:create]} #{@nodelist['master_address']} &> /dev/null & echo $!`.chomp  # Run master
-      order @@chordcmd[:join] + " " + @nodelist['master_address']
+
+      @nodelist['nodes'].each do |node|
+        @pidlist[node] = `ssh #{node} '#{@@chordcmd[:join]} #{@nodelist['master_address']} &> /dev/null & echo $!' `.chomp
+      end
 
       File.open('.pidlist', 'w') { |f| f.write JSON.generate(@pidlist) }
       puts "--------------Network Created-----------------"
