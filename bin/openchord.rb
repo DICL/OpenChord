@@ -30,7 +30,6 @@ EOF
     # }}} 
     # initialize {{{
     #
-    #
     def initialize argv:, filepath: 
       # Create the dictionary to call the OpenChord routines
       # Overkill right? but it was supposed to have many elements at the beginning
@@ -54,14 +53,13 @@ EOF
       ( { "Errno::ENOENT" => "File not found, change filepath",
           "NoMethodError" => "Wrong options passed to the program" 
       } [e.class.name] or e.message).red.warnout
-#      binding.pry
       abort HELP
     end
 
     # }}} 
     # info {{{
     def info 
-      ap File.open('.pidlist', 'r') { |f| JSON.parse(f.read) } if File.exist? '.pidlist'
+      ap File.open('ochord.pid', 'r') { |f| JSON.parse(f.read) } if File.exist? 'ochord.pid'
       ap @nodelist
     end
 
@@ -70,9 +68,9 @@ EOF
     #  Many harcoded things :TODO:
     #
     def insert key:, value:
-      fail "No instance of openchord runinng" unless File.exist? '.pidlist'
+      fail "No instance of openchord runinng" unless File.exist? 'ochord.pid'
 
-      @pidlist = File.open('.pidlist', 'r') { |f| JSON.parse(f.read) }
+      @pidlist = File.open('ochord.pid', 'r') { |f| JSON.parse(f.read) }
       `echo '#{key} #{value}' > /proc/#{@pidlist['master']}/fd/0`
       warn "Problem inserting" unless $?.exited?
     end
@@ -81,17 +79,26 @@ EOF
     # close {{{
     #
     def close
-      @pidlist= File.open('.pidlist', 'r') { |f| JSON.parse(f.read) }  # Assert that we have a pidfile
+      @pidlist= File.open('ochord.pid', 'r') { |f| JSON.parse(f.read) }  # Assert that we have a pidfile
 
-      `kill #{@pidlist['master']}`                                     # Kill master
-      @nodelist['nodes'].each do |node|                                # Kill for each of the nodes
+      `kill #{@pidlist['master']}`                                       # Kill master
+      @nodelist['nodes'].each do |node|                                  # Kill for each of the nodes
         `ssh #{node} kill #{@pidlist[node]}` 
       end
 
-      File.delete '.pidlist'
-      puts "--------------Network Close-------------------"
+      File.delete 'ochord.pid'
     end
   
+    # }}}
+    # hard_close {{{
+    #
+    def hardclose
+      `pkill -u vicente java`                                              # Kill master
+      @nodelist['nodes'].each do |node|                                    # Kill for each of the nodes
+        `ssh #{node} pkill -u vicente java` 
+      end
+    end
+
     # }}}
     # create {{{
     #
@@ -102,8 +109,7 @@ EOF
         @pidlist[node] = `ssh #{node} '#{@@chordcmd[:join]} #{@nodelist['master_address']} &> /dev/null & echo $!' `.chomp
       end
 
-      File.open('.pidlist', 'w') { |f| f.write JSON.generate(@pidlist) }
-      puts "--------------Network Created-----------------"
+      File.open('ochord.pid', 'w') { |f| f.write JSON.generate(@pidlist) }
       ap @pidlist
     end
   end
