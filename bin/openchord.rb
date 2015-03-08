@@ -1,33 +1,54 @@
 #!/usr/bin/env ruby
 # vim: ft=ruby : fileencoding=utf-8 : foldmethod=marker
-require 'colored'
-require 'json'
-require 'awesome_print'
-require 'pry'
+%w[optparse colored json awesome_print pry].each { |m| require "#{m}" }
 
 module OpenChord
   class ::String #{{{
     def warnout; warn self; end; 
   end #}}}
-  
+  class CLIcontroler < Launcher #{{{
+    options = {}
+    def initialize (input)
+      OptionParser.new do |opts|
+        opts.banner = "Usage: openchord.rb [options]"
+
+        opts.on("-s", "--stat", "Run verbosely") do |i| 
+          ochord.info 
+        end 
+
+        opts.on("-cAddress", "--create=Address", "Run verbosely") do |i| 
+          options[:address] = i 
+        end 
+
+        opts.on("-jAddress", "--join=Address", "Run verbosely") do |i| 
+          options[:address] = i 
+        end 
+
+        opts.on("-i", "--insert", "Run verbosely") do |i| 
+        #  options[:verbose] = i 
+        end 
+
+        opts.on("-r", "--retrieve", "Run verbosely") do |i| 
+         # options[:verbose] = i 
+        end 
+
+        opts.on("-d", "--delete", "Run verbosely") do |i| 
+         # options[:verbose] = i 
+        end 
+
+        opts.on("-k", "--close", "Run verbosely") do |i| 
+          options[:verbose] = i 
+        end 
+
+        opts.on("-K", "--hardclose", "Run verbosely") do |i| 
+          options[:verbose] = i 
+        end 
+      end.parse! input
+      p options
+    end 
+  end #}}}
+
   class Launcher
-    #{{{
-    HELP = <<-EOF
-use `ochord [option] [arg1] [arg2]`
-Here are the available options
-==============================
-#{[ ["create".red    , "Create OpenChord network"]                            ,
-    ["join".red      , "Join OpenChord network"]                              ,
-    ["insert".red    , "Insert the given data (arg1, arg2 required)"]         ,
-    ["delete".red    , "Delete the entry of the given key (arg1 required)"]   ,
-    ["retrieve".red  , "Retrieve the entry of the given key (arg1 required)"] ,
-    ["info".green    , "Print out useful variables"]                          ,
-    ["quiet".green   , "do not printout anything"]                            ,
-    ["help".green    , "this"] ]
-  .map { |item| "%20.20s  %-60.60s\n" % [item[0], item[1]] }.join }
-EOF
-  
-    # }}} 
     # initialize {{{
     #
     def initialize argv:, filepath: 
