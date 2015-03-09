@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 # vim: ft=ruby : fileencoding=utf-8 : foldmethod=marker
-%w[optparse colored json awesome_print pry].each { |m| require "#{m}" }
+%w[ruby-progressbar optparse etc colored json awesome_print pry].each { |m| require m }
 
 module OpenChord
   class ::String #{{{
@@ -32,13 +32,14 @@ module OpenChord
     #
     def create
       @pidlist['master'] = `#{@@chordcmd[:create]} #{@nodelist['master_address']} &> /dev/null & echo $!`.chomp  # Run master
+      progressbar = ProgressBar.create(:format => '%e %b>%i %p%% %t', :total => @nodelist['nodes'].length, :progress_mark => "+".red)
 
       @nodelist['nodes'].each do |node|
         @pidlist[node] = `ssh #{node} '#{@@chordcmd[:join]} #{@nodelist['master_address']} &> /dev/null & echo $!' `.chomp
+        progressbar.increment
       end
 
       File.open('ochord.pid', 'w') { |f| f.write JSON.generate(@pidlist) }
-      ap @pidlist
     end
   end #}}}
     # close {{{
@@ -46,12 +47,17 @@ module OpenChord
     def close
       @pidlist= File.open('ochord.pid', 'r') { |f| JSON.parse(f.read) }  # Assert that we have a pidfile
 
+      progressbar = ProgressBar.create(:format => '%e %b>%i %p%% %t', :total => @nodelist['nodes'].length, :progress_mark => "+".red)
       `kill #{@pidlist['master']}`                                       # Kill master
       @nodelist['nodes'].each do |node|                                  # Kill for each of the nodes
         `ssh #{node} kill #{@pidlist[node]}` 
+        progressbar.increment
       end
 
       File.delete 'ochord.pid'
+    rescue => e 
+      warn "No previous instance of openchord found"
+      abort
     end
 
     # }}}
@@ -61,6 +67,20 @@ module OpenChord
       `pkill -u vicente java`                                              # Kill master
       @nodelist['nodes'].each do |node|                                    # Kill for each of the nodes
         `ssh #{node} pkill -u vicente java` 
+      end
+    end
+
+    # }}}
+    # show {{{
+    #
+    def show 
+      `pgrep -u vicente java` 
+      status = ($?.exitstatus == 0) ? "Runing" : "Closed"
+      puts "#{Etc.uname[:nodename].chomp.green} : #{status.red}"
+      @nodelist['nodes'].each do |node|                                    # Kill for each of the nodes
+        `ssh #{node} pgrep -u vicente java` 
+        status = ($?.exitstatus == 0) ? "Runing" : "Closed"
+        puts "#{`ssh #{node} hostname`.chomp.green} : #{status.red}"
       end
     end
 
@@ -91,16 +111,24 @@ module OpenChord
       super(filepath: filepath)
 
       OptionParser.new do |opts|
-        opts.banner = "Usage: openchord.rb [options]"
-
-        opts.on("-s", "--stat"        , "Reveal current setting") { |i| info }
+        opts.banner = <<EOF
+openchord.rb is a script to create a OpenChord network
+Usage: openchord.rb [options]
+EOF
+        opts.version = 1.0
+        opts.program_name = "\'Ruby openchord\' launcher"
+        opts.separator "\nCore functions"
         opts.on("-c", "--create [Address]", "Create new openchord network") { |i| @options[:address] = i; create }
         opts.on("-i key,value", "--insert key,value", Array, "insert new field") { |i| }
         opts.on("-r", "--retrieve key", "Retrieve existing field") { |i| }
         opts.on("-d", "--delete key"  , "delete a field") { |i| }
-        opts.on("-k", "--close"       , "close network")  { |i| @options[:verbose] = i; close }
-        opts.on("-K", "--hardclose"   , "no mercy close") { |i| hardclose }
-        opts.on("-h", "--help"        , "recursive this") { |i| puts opts }
+        opts.on("-k", "--close"       , "close network")  { close }
+        opts.on("-K", "--hardclose"   , "no mercy close") { hardclose }
+        opts.separator "\nDebug options"
+        opts.on(      "--config"      , "Reveal current setting") { info }
+        opts.on(      "--show"        , "Check the status of the network") { show }
+        opts.separator ""
+        opts.on_tail("-h", "--help"        , "recursive this") { puts opts }
       end.parse! input
     end 
   end #}}}
