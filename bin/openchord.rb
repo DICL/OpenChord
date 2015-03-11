@@ -20,6 +20,7 @@ module OpenChord
 
       # Load configuration JSON file
       File.open(filepath, 'rb') { |f| @nodelist = JSON.parse(f.read) }
+      @universe = ["localhost"] | @nodelist['nodes']
 
     rescue => e
       ( { "Errno::ENOENT" => "File not found, change filepath",
@@ -31,7 +32,7 @@ module OpenChord
     # create {{{
     #
     def create
-      @pidlist['master'] = `#{@@chordcmd[:create]} #{@nodelist['master_address']} &> /dev/null & echo $!`.chomp  # Run master
+      @pidlist['localhost'] = `#{@@chordcmd[:create]} #{@nodelist['master_address']} &> /dev/null & echo $!`.chomp  # Run master
       progressbar = ProgressBar.create(:format => '%e %b>%i %p%% %t', :total => @nodelist['nodes'].length, :progress_mark => "+".red)
 
       @nodelist['nodes'].each do |node|
@@ -47,11 +48,10 @@ module OpenChord
     def close
       @pidlist= File.open('ochord.pid', 'r') { |f| JSON.parse(f.read) }  # Assert that we have a pidfile
 
-      progressbar = ProgressBar.create(:format => '%e %b>%i %p%% %t', :total => @nodelist['nodes'].length, :progress_mark => "+".red)
-      `kill #{@pidlist['master']}`                                       # Kill master
-      @nodelist['nodes'].each do |node|                                  # Kill for each of the nodes
+      pb = ProgressBar.create(:format => '%e %b>%i %p%% %t', :total => @nodelist['nodes'].length, :progress_mark => "+".red)
+      @universe.each do |node|                                  # Kill for each of the nodes
         `ssh #{node} kill #{@pidlist[node]}` 
-        progressbar.increment
+        pb.increment
       end
 
       File.delete 'ochord.pid'
@@ -64,8 +64,7 @@ module OpenChord
     # hard_close {{{
     #
     def hardclose
-      `pkill -u vicente java`                                              # Kill master
-      @nodelist['nodes'].each do |node|                                    # Kill for each of the nodes
+      @universe.each do |node|                                    # Kill for each of the nodes
         `ssh #{node} pkill -u vicente java` 
       end
     end
@@ -74,12 +73,12 @@ module OpenChord
     # show {{{
     #
     def show 
-      `pgrep -u vicente java` 
-      status = ($?.exitstatus == 0) ? "Runing" : "Closed"
-      puts "#{Etc.uname[:nodename].chomp.green} : #{status.red}"
-      @nodelist['nodes'].each do |node|                                    # Kill for each of the nodes
-        `ssh #{node} pgrep -u vicente java` 
-        status = ($?.exitstatus == 0) ? "Runing" : "Closed"
+      @universe.each do |node|                                    # Kill for each of the nodes
+        status =  if `ssh #{node} pgrep -u vicente java &> /dev/null; echo $?`.to_i == 0 
+                    "Runing"
+                  else
+                    "Stopped"
+                  end
         puts "#{`ssh #{node} hostname`.chomp.green} : #{status.red}"
       end
     end
@@ -87,7 +86,7 @@ module OpenChord
     # }}}
     # info {{{
     def info 
-      ap File.open('ochord.pid', 'r') { |f| JSON.parse(f.read) } if File.exist? 'ochord.pid'
+      ap File.open('ochord.pid') { |f| JSON.parse(f.read) } if File.exist? 'ochord.pid'
       ap @nodelist
     end
 
