@@ -8,6 +8,8 @@ module OpenChord
   end #}}}
 
   class Launcher
+    attr_accessor :debug
+
     # initialize {{{
     #
     def initialize filepath: 
@@ -17,15 +19,14 @@ module OpenChord
         [k, "java -jar /home/vicente/OpenChord/dist/#{k.to_s.capitalize}.jar"]
       end.to_h
       @pidlist = {}
+      @debug = false
 
       # Load configuration JSON file
-      File.open(filepath, 'rb') { |f| @nodelist = JSON.parse(f.read) }
+      @nodelist = File.open(filepath) { |f| JSON.parse(f.read) }
       @universe = ["localhost"] | @nodelist['nodes']
 
     rescue => e
-      ( { "Errno::ENOENT" => "File not found, change filepath",
-          "NoMethodError" => "Wrong options passed to the program" 
-      } [e.class.name] or e.message).red.warnout
+      (e.class.name == "Errno::ENOENT" ? "File not found, change filepath" : e.message).red.warnout
     end
 
     # }}} 
@@ -33,11 +34,15 @@ module OpenChord
     #
     def create
       @pidlist['localhost'] = `#{@@chordcmd[:create]} #{@nodelist['master_address']} &> /dev/null & echo $!`.chomp  # Run master
-      progressbar = ProgressBar.create(:format => '%e %b>%i %p%% %t', :total => @nodelist['nodes'].length, :progress_mark => "+".red)
+      if @debug then
+        pb = ProgressBar.create(:format => '%e %b>%i %p%% %t', 
+                                :total => @nodelist['nodes'].length, 
+                                :progress_mark => "+".red)
+      end
 
       @nodelist['nodes'].each do |node|
         @pidlist[node] = `ssh #{node} '#{@@chordcmd[:join]} #{@nodelist['master_address']} &> /dev/null & echo $!' `.chomp
-        progressbar.increment
+        pb.increment if @debug
       end
 
       File.open('ochord.pid', 'w') { |f| f.write JSON.generate(@pidlist) }
@@ -46,12 +51,17 @@ module OpenChord
     # close {{{
     #
     def close
-      @pidlist= File.open('ochord.pid', 'r') { |f| JSON.parse(f.read) }  # Assert that we have a pidfile
+      @pidlist = File.open('ochord.pid') { |f| JSON.parse(f.read) }  # Assert that we have a pidfile
 
-      pb = ProgressBar.create(:format => '%e %b>%i %p%% %t', :total => @nodelist['nodes'].length, :progress_mark => "+".red)
+      if @debug then
+        pb = ProgressBar.create(:format => '%e %b>%i %p%% %t', 
+                                :total => (@nodelist['nodes'].length + 1), 
+                                :progress_mark => "+".red)
+      end
+
       @universe.each do |node|                                  # Kill for each of the nodes
         `ssh #{node} kill #{@pidlist[node]}` 
-        pb.increment
+        pb.increment if @debug
       end
 
       File.delete 'ochord.pid'
@@ -74,11 +84,8 @@ module OpenChord
     #
     def show 
       @universe.each do |node|                                    # Kill for each of the nodes
-        status =  if `ssh #{node} pgrep -u vicente java &> /dev/null; echo $?`.to_i == 0 
-                    "Runing"
-                  else
-                    "Stopped"
-                  end
+        `ssh #{node} pgrep -u vicente java`
+        status = $?.exitstatus == 0 ? "Running" : "Stopped"
         puts "#{`ssh #{node} hostname`.chomp.green} : #{status.red}"
       end
     end
@@ -112,11 +119,11 @@ module OpenChord
       OptionParser.new do |opts|
         opts.banner = <<EOF
 openchord.rb is a script to create a OpenChord network
-Usage: openchord.rb [options]
+Usage: openchord.rb [-v/--verbose] [options]
 EOF
         opts.version = 1.0
         opts.program_name = "\'Ruby openchord\' launcher"
-        opts.separator "\nCore functions"
+        opts.separator "\nCore options"
         opts.on("-c", "--create [Address]", "Create new openchord network") { |i| @options[:address] = i; create }
         opts.on("-i key,value", "--insert key,value", Array, "insert new field") { |i| }
         opts.on("-r", "--retrieve key", "Retrieve existing field") { |i| }
@@ -124,10 +131,11 @@ EOF
         opts.on("-k", "--close"       , "close network")  { close }
         opts.on("-K", "--hardclose"   , "no mercy close") { hardclose }
         opts.separator "\nDebug options"
+        opts.on("-v", "--verbose"     , "Print out debug messages") { @debug = true } 
         opts.on(      "--config"      , "Reveal current setting") { info }
         opts.on(      "--show"        , "Check the status of the network") { show }
         opts.separator ""
-        opts.on_tail("-h", "--help"        , "recursive this") { puts opts }
+        opts.on_tail("-h", "--help"   , "recursive this") { puts opts }
       end.parse! input
     end 
   end #}}}
