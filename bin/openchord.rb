@@ -1,65 +1,99 @@
 #!/usr/bin/env ruby
 # vim: ft=ruby : fileencoding=utf-8 : foldmethod=marker
-require 'colored'
-require 'json'
-require 'awesome_print'
-require 'pry'
+%w[ruby-progressbar optparse etc colored json awesome_print pry].each { |m| require m }
 
 module OpenChord
   class ::String #{{{
     def warnout; warn self; end; 
   end #}}}
-  
+
   class Launcher
-    #{{{
-    HELP = <<-EOF
-use `ochord [option] [arg1] [arg2]`
-Here are the available options
-==============================
-#{[ ["create".red    , "Create OpenChord network"]                            ,
-    ["join".red      , "Join OpenChord network"]                              ,
-    ["insert".red    , "Insert the given data (arg1, arg2 required)"]         ,
-    ["delete".red    , "Delete the entry of the given key (arg1 required)"]   ,
-    ["retrieve".red  , "Retrieve the entry of the given key (arg1 required)"] ,
-    ["info".green    , "Print out useful variables"]                          ,
-    ["quiet".green   , "do not printout anything"]                            ,
-    ["help".green    , "this"] ]
-  .map { |item| "%20.20s  %-60.60s\n" % [item[0], item[1]] }.join }
-EOF
-  
-    # }}} 
+    attr_accessor :debug
+
     # initialize {{{
     #
-    def initialize argv:, filepath: 
+    def initialize filepath: 
       # Create the dictionary to call the OpenChord routines
       # Overkill right? but it was supposed to have many elements at the beginning
       @@chordcmd = %i[create join].map do |k| 
         [k, "java -jar /home/vicente/OpenChord/dist/#{k.to_s.capitalize}.jar"]
       end.to_h
       @pidlist = {}
+      @debug = false
 
       # Load configuration JSON file
-      File.open(filepath, 'rb') { |f| @nodelist = JSON.parse(f.read) }
-  
-      # Run the commands
-      fail "No commands specified" unless argv.any? 
-      if argv.first == "insert"
-        insert key: argv[1], value: argv[2]             # Case for inserting
-      else              
-        send argv.first                                 # Case for creating or join
-      end
-  
+      @nodelist = File.open(filepath) { |f| JSON.parse(f.read) }
+      @universe = ["localhost"] | @nodelist['nodes']
+
     rescue => e
-      ( { "Errno::ENOENT" => "File not found, change filepath",
-          "NoMethodError" => "Wrong options passed to the program" 
-      } [e.class.name] or e.message).red.warnout
-      abort HELP
+      (e.class.name == "Errno::ENOENT" ? "File not found, change filepath" : e.message).red.warnout
     end
 
     # }}} 
+    # create {{{
+    #
+    def create
+      @pidlist['localhost'] = `#{@@chordcmd[:create]} #{@nodelist['master_address']} &> /dev/null & echo $!`.chomp  # Run master
+      if @debug then
+        pb = ProgressBar.create(:format => '%e %b>%i %p%% %t', 
+                                :total => @nodelist['nodes'].length, 
+                                :progress_mark => "+".red)
+      end
+
+      @nodelist['nodes'].each do |node|
+        @pidlist[node] = `ssh #{node} '#{@@chordcmd[:join]} #{@nodelist['master_address']} &> /dev/null & echo $!' `.chomp
+        pb.increment if @debug
+      end
+
+      File.open('ochord.pid', 'w') { |f| f.write JSON.generate(@pidlist) }
+    end
+  end #}}}
+    # close {{{
+    #
+    def close
+      @pidlist = File.open('ochord.pid') { |f| JSON.parse(f.read) }  # Assert that we have a pidfile
+
+      if @debug then
+        pb = ProgressBar.create(:format => '%e %b>%i %p%% %t', 
+                                :total => (@nodelist['nodes'].length + 1), 
+                                :progress_mark => "+".red)
+      end
+
+      @universe.each do |node|                                  # Kill for each of the nodes
+        `ssh #{node} kill #{@pidlist[node]}` 
+        pb.increment if @debug
+      end
+
+      File.delete 'ochord.pid'
+    rescue => e 
+      warn "No previous instance of openchord found"
+      abort
+    end
+
+    # }}}
+    # hard_close {{{
+    #
+    def hardclose
+      @universe.each do |node|                                    # Kill for each of the nodes
+        `ssh #{node} pkill -u vicente java` 
+      end
+    end
+
+    # }}}
+    # show {{{
+    #
+    def show 
+      @universe.each do |node|                                    # Kill for each of the nodes
+        `ssh #{node} pgrep -u vicente java`
+        status = $?.exitstatus == 0 ? "Running" : "Stopped"
+        puts "#{`ssh #{node} hostname`.chomp.green} : #{status.red}"
+      end
+    end
+
+    # }}}
     # info {{{
     def info 
-      ap File.open('ochord.pid', 'r') { |f| JSON.parse(f.read) } if File.exist? 'ochord.pid'
+      ap File.open('ochord.pid') { |f| JSON.parse(f.read) } if File.exist? 'ochord.pid'
       ap @nodelist
     end
 
@@ -76,41 +110,33 @@ EOF
     end
 
     # }}}
-    # close {{{
-    #
-    def close
-      @pidlist= File.open('ochord.pid', 'r') { |f| JSON.parse(f.read) }  # Assert that we have a pidfile
 
-      `kill #{@pidlist['master']}`                                       # Kill master
-      @nodelist['nodes'].each do |node|                                  # Kill for each of the nodes
-        `ssh #{node} kill #{@pidlist[node]}` 
-      end
+  class CLIcontroler < Launcher
+    def initialize input:, filepath:  #{{{
+      @options = {}
+      super(filepath: filepath)
 
-      File.delete 'ochord.pid'
-    end
-  
-    # }}}
-    # hard_close {{{
-    #
-    def hardclose
-      `pkill -u vicente java`                                              # Kill master
-      @nodelist['nodes'].each do |node|                                    # Kill for each of the nodes
-        `ssh #{node} pkill -u vicente java` 
-      end
-    end
-
-    # }}}
-    # create {{{
-    #
-    def create
-      @pidlist['master'] = `#{@@chordcmd[:create]} #{@nodelist['master_address']} &> /dev/null & echo $!`.chomp  # Run master
-
-      @nodelist['nodes'].each do |node|
-        @pidlist[node] = `ssh #{node} '#{@@chordcmd[:join]} #{@nodelist['master_address']} &> /dev/null & echo $!' `.chomp
-      end
-
-      File.open('ochord.pid', 'w') { |f| f.write JSON.generate(@pidlist) }
-      ap @pidlist
-    end
-  end
-end 
+      OptionParser.new do |opts|
+        opts.banner = <<EOF
+openchord.rb is a script to create a OpenChord network
+Usage: openchord.rb [-v/--verbose] [options]
+EOF
+        opts.version = 1.0
+        opts.program_name = "\'Ruby openchord\' launcher"
+        opts.separator "\nCore options"
+        opts.on("-c", "--create [Address]", "Create new openchord network") { |i| @options[:address] = i; create }
+        opts.on("-i key,value", "--insert key,value", Array, "insert new field") { |i| }
+        opts.on("-r", "--retrieve key", "Retrieve existing field") { |i| }
+        opts.on("-d", "--delete key"  , "delete a field") { |i| }
+        opts.on("-k", "--close"       , "close network")  { close }
+        opts.on("-K", "--hardclose"   , "no mercy close") { hardclose }
+        opts.separator "\nDebug options"
+        opts.on("-v", "--verbose"     , "Print out debug messages") { @debug = true } 
+        opts.on(      "--config"      , "Reveal current setting") { info }
+        opts.on(      "--show"        , "Check the status of the network") { show }
+        opts.separator ""
+        opts.on_tail("-h", "--help"   , "recursive this") { puts opts }
+      end.parse! input
+    end 
+  end #}}}
+end
