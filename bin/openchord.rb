@@ -47,7 +47,6 @@ module OpenChord
 
       File.open('ochord.pid', 'w') { |f| f.write JSON.generate(@pidlist) }
     end
-  end #}}}
     # close {{{
     #
     def close
@@ -108,7 +107,7 @@ module OpenChord
       `echo '#{key} #{value}' > /proc/#{@pidlist['master']}/fd/0`
       warn "Problem inserting" unless $?.exited?
     end
-
+  end
     # }}}
 
   class CLIcontroler < Launcher
@@ -140,3 +139,9 @@ EOF
     end 
   end #}}}
 end
+__END__
+=begin rdoc
+Rationale
+  + 
+  +
+=end
