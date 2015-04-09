@@ -32,7 +32,10 @@ module OpenChord
     # create {{{
     #
     def create
-      @pidlist['localhost'] = `#{@@chordcmd[:create]} #{@nodelist['master_address']} &> /dev/null & echo $!`.chomp  # Run master
+      make_pipe
+      system "#{@@chordcmd[:create]} #{@nodelist['master_address']} < ochord.pipe.in &"
+      @pidlist['localhost'] = $?.pid + 1 # :WATCHOUT: Super buggy
+
       if @debug then
         pb = ProgressBar.create(:format => '%e %b>%i %p%% %t', 
                                 :total => @nodelist['nodes'].length, 
@@ -64,6 +67,8 @@ module OpenChord
       end
 
       File.delete 'ochord.pid'
+      File.delete 'ochord.pipe.in'
+      File.delete 'ochord.pipe.out'
     rescue => e 
       warn "No previous instance of openchord found"
       abort
@@ -76,6 +81,10 @@ module OpenChord
       @universe.each do |node|                                    # Kill for each of the nodes
         `ssh #{node} pkill -u vicente java` 
       end
+
+      File.delete 'ochord.pid'
+      File.delete 'ochord.pipe.in'
+      File.delete 'ochord.pipe.out'
     end
 
     # }}}
@@ -104,7 +113,7 @@ module OpenChord
       fail "No instance of openchord runinng" unless File.exist? 'ochord.pid'
 
       @pidlist = File.open('ochord.pid', 'r') { |f| JSON.parse(f.read) }
-      `echo 'insert #{key} #{value}' > /proc/#{@pidlist['localhost']}/fd/0`
+      `echo 'insert #{key} #{value}' > ochord.pipe.in`
       warn "Problem inserting" unless $?.exited?
     end
     # }}}
@@ -120,7 +129,12 @@ module OpenChord
       warn "Problem inserting" unless $?.exited?
     end
   end
-    # }}}
+    #}}}
+    # Make pipe {{{ 
+    def make_pipe
+      `mkfifo ochord.pipe.in; mkfifo ochord.pipe.out`
+    end
+    #}}}
 
   class CLIcontroler < Launcher
     def initialize input:, filepath:  #{{{
