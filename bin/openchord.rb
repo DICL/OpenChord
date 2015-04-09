@@ -11,7 +11,6 @@ module OpenChord
     attr_accessor :debug
 
     # initialize {{{
-    #
     def initialize filepath: 
       # Create the dictionary to call the OpenChord routines
       # Overkill right? but it was supposed to have many elements at the beginning
@@ -47,8 +46,9 @@ module OpenChord
 
       File.open('ochord.pid', 'w') { |f| f.write JSON.generate(@pidlist) }
     end
+
+    # }}}
     # close {{{
-    #
     def close
       @pidlist = File.open('ochord.pid') { |f| JSON.parse(f.read) }  # Assert that we have a pidfile
 
@@ -97,14 +97,26 @@ module OpenChord
     end
 
     ## }}}
-    #  insert {{{
+    #  Insert {{{
     #  Many harcoded things :TODO:
     #
     def insert key:, value:
       fail "No instance of openchord runinng" unless File.exist? 'ochord.pid'
 
       @pidlist = File.open('ochord.pid', 'r') { |f| JSON.parse(f.read) }
-      `echo '#{key} #{value}' > /proc/#{@pidlist['master']}/fd/0`
+      `echo 'insert #{key} #{value}' > /proc/#{@pidlist['localhost']}/fd/0`
+      warn "Problem inserting" unless $?.exited?
+    end
+    # }}}
+    #  Retrieve {{{
+    #  Many harcoded things :TODO:
+    #
+    def retrieve key: 
+      fail "No instance of openchord runinng" unless File.exist? 'ochord.pid'
+
+      @pidlist = File.open('ochord.pid') { |f| JSON.parse(f.read) }
+      `echo 'retrieve #{key}' > /proc/#{@pidlist['localhost']}/fd/0`
+      puts `cat /proc/#{@pidlist['localhost']}/fd/1`
       warn "Problem inserting" unless $?.exited?
     end
   end
@@ -125,7 +137,7 @@ EOF
         opts.separator "\nCore options"
         opts.on("-c", "--create [Address]", "Create new openchord network") { |i| @options[:address] = i; create }
         opts.on("-i key,value", "--insert key,value", Array, "insert new field") { |i| }
-        opts.on("-r", "--retrieve key", "Retrieve existing field") { |i| }
+        opts.on("-r", "--retrieve key", "Retrieve existing field") { |i| retrieve(key: i) }
         opts.on("-d", "--delete key"  , "delete a field") { |i| }
         opts.on("-k", "--close"       , "close network")  { close }
         opts.on("-K", "--hardclose"   , "no mercy close") { hardclose }
@@ -139,9 +151,3 @@ EOF
     end 
   end #}}}
 end
-__END__
-=begin rdoc
-Rationale
-  + 
-  +
-=end
