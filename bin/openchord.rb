@@ -14,8 +14,8 @@ module OpenChord
     def initialize filepath: 
       # Create the dictionary to call the OpenChord routines
       # Overkill right? but it was supposed to have many elements at the beginning
-      @@chordcmd = %i[create join].map do |k| 
-        [k, "java -jar /home/vicente/OpenChord/dist/#{k.to_s.capitalize}.jar"]
+      @@chordcmd = %i[Create Join].map do |k| 
+      [k, "java -cp /home/vicente/OpenChord/dist/Create.jar:/home/vicente/OpenChord/lib/json.jar eclipse.#{k.to_s.capitalize}"]
       end.to_h
       @pidlist = {}
       @debug = false
@@ -33,7 +33,7 @@ module OpenChord
     #
     def create
       make_pipe
-      system "#{@@chordcmd[:create]} #{@nodelist['master_address']} < ochord.pipe.in &"
+      system "#{@@chordcmd[:Create]} #{@nodelist['master_address']} < ochord.pipe.in > ochord.pipe.out 2>output &"
       @pidlist['localhost'] = $?.pid + 1 # :WATCHOUT: Super buggy
 
       if @debug then
@@ -43,7 +43,7 @@ module OpenChord
       end
 
       @nodelist['nodes'].each do |node|
-        @pidlist[node] = `ssh #{node} '#{@@chordcmd[:join]} #{@nodelist['master_address']} &> /dev/null & echo $!' `.chomp
+        @pidlist[node] = `ssh #{node} '#{@@chordcmd[:Join]} #{@nodelist['master_address']} &> /dev/null & echo $!' `.chomp
         pb.increment if @debug
       end
 
@@ -112,9 +112,8 @@ module OpenChord
     def insert key:, value:
       fail "No instance of openchord runinng" unless File.exist? 'ochord.pid'
 
-      @pidlist = File.open('ochord.pid', 'r') { |f| JSON.parse(f.read) }
-      `echo 'insert #{key} #{value}' > ochord.pipe.in`
-      warn "Problem inserting" unless $?.exited?
+      package = {:command => 'insert', :key => key, :value => value}
+      File.open('ochord.pipe.in', 'w') { |f| f.write JSON.generate(package) }
     end
     # }}}
     #  Retrieve {{{
@@ -122,11 +121,13 @@ module OpenChord
     #
     def retrieve key: 
       fail "No instance of openchord runinng" unless File.exist? 'ochord.pid'
+      package = {:command => 'retrieve', :key => key, :value => "dummy"}
+      f = File.open('ochord.pipe.out', 'r+');
+      File.open('ochord.pipe.in', 'w') { |f| f.write JSON.generate(package) }
 
-      @pidlist = File.open('ochord.pid') { |f| JSON.parse(f.read) }
-      `echo 'retrieve #{key}' > /proc/#{@pidlist['localhost']}/fd/0`
-      puts `cat /proc/#{@pidlist['localhost']}/fd/1`
-      warn "Problem inserting" unless $?.exited?
+      #Read the reply
+      output = JSON.parse(f.gets)
+      puts output['data']
     end
   end
     #}}}
@@ -150,7 +151,7 @@ EOF
         opts.program_name = "\'Ruby openchord\' launcher"
         opts.separator "\nCore options"
         opts.on("-c", "--create [Address]", "Create new openchord network") { |i| @options[:address] = i; create }
-        opts.on("-i key,value", "--insert key,value", Array, "insert new field") { |i| }
+        opts.on("-i key,value", "--insert key,value", Array, "insert new field") { |i,j| insert(key: i, value: j) }
         opts.on("-r", "--retrieve key", "Retrieve existing field") { |i| retrieve(key: i) }
         opts.on("-d", "--delete key"  , "delete a field") { |i| }
         opts.on("-k", "--close"       , "close network")  { close }

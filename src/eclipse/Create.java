@@ -11,6 +11,9 @@ import java.net.MalformedURLException;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.IOException;
+import java.io.*;
+import org.json.*;
+import java.util.*;
 
 public class Create {
     public static void main (String[] args) {
@@ -26,42 +29,54 @@ public class Create {
 
             Chord chord = new ChordImpl();
             chord.create (localURL);
-            System.out.println ("OpenChord network created at " + localURL);
+//System.out.println ("OpenChord network created at " + localURL);
 
             BufferedReader br = 
                 new BufferedReader (new InputStreamReader(System.in));
-            String input;
 
-            while ((input=br.readLine())!=null) { 
-                String[] arrayin = input.split("[ ]");
+            while (true) { 
+                String input = br.readLine();
+                if (input == null) continue;
+                JSONObject obj = new JSONObject(input);
 
-                String command   = arrayin[0];
-                String skey      = new String(arrayin[1]);
-                String svalue;
+                String command   = obj.getString("command");
+                String skey      = obj.getString("key");
+                String svalue    = obj.getString("value");
+
+                System.err.println("Cmd: " + command +" key: " + skey + " value " + svalue);
+
+                if (command.equals("exit")) {
+                  break;
+                }
 
                 if (command.equals("insert")) {
-                    //svalue       = arrayin[2];
-
-                    System.err.println ("Inserting: " + skey + " " );
                     StringKey myKey = new StringKey (skey) ;
 
                     try {
-                        chord.insert (myKey , skey);
+                        chord.insert (myKey , svalue);
 
                     } catch (ServiceException e) {
                         System.err.println ("insertion failed");
                     }
 
                 } else if (command.equals("retrieve")) {
-                    svalue       = arrayin[2];
-                    System.out.println("Retrieve mock");
+                    StringKey myKey = new StringKey (skey) ;
+                    try {
+                      Set<Serializable> ss = chord.retrieve (myKey);
+                      for (Serializable aux : ss) {
+System.err.println ("{\"key\":\""+ myKey + "\",\"data\":\"" + aux + "\"}");
+                        System.out.println ("{\"key\":\""+ myKey + "\",\"data\":\"" + aux + "\"}");
+  //                      System.err.println ("done");
+                      }
 
+                    } catch (ServiceException e) {
+                        System.err.println ("insertion failed");
+                    }
                 } else if (command.equals("close")) {
-                    System.out.println ("Close mock");
+                    System.err.println ("Close mock");
                 }
-
-                System.out.println ("Cmd: [" + command + "] key: [" + skey + "]"); 
             }
+            //System.err.println ("Bye dude!");
 
         } catch (MalformedURLException e ) {
             throw new RuntimeException(e);
@@ -72,5 +87,6 @@ public class Create {
         } catch (ServiceException e) {
             throw new RuntimeException("Could not create DHT!", e);
         }
+
     }
 } 
