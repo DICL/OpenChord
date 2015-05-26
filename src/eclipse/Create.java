@@ -29,7 +29,6 @@ public class Create {
 
             Chord chord = new ChordImpl();
             chord.create (localURL);
-//System.out.println ("OpenChord network created at " + localURL);
 
             BufferedReader br = 
                 new BufferedReader (new InputStreamReader(System.in));
@@ -44,10 +43,6 @@ public class Create {
                 String svalue    = obj.getString("value");
 
                 System.err.println("Cmd: " + command +" key: " + skey + " value " + svalue);
-
-                if (command.equals("exit")) {
-                  break;
-                }
 
                 if (command.equals("insert")) {
                     StringKey myKey = new StringKey (skey) ;
@@ -64,19 +59,33 @@ public class Create {
                     try {
                       Set<Serializable> ss = chord.retrieve (myKey);
                       for (Serializable aux : ss) {
-System.err.println ("{\"key\":\""+ myKey + "\",\"data\":\"" + aux + "\"}");
+                        System.err.println ("{\"key\":\""+ myKey + "\",\"data\":\"" + aux + "\"}");
                         System.out.println ("{\"key\":\""+ myKey + "\",\"data\":\"" + aux + "\"}");
-  //                      System.err.println ("done");
                       }
 
                     } catch (ServiceException e) {
                         System.err.println ("insertion failed");
+                        //System.out.println ("{\"command\":\"notification"\",\"key\":\"fail\"}");
                     }
+
+                } else if (command.equals("delete")) {
+                    StringKey myKey = new StringKey (skey) ;
+
+                    try {
+                        chord.remove (myKey , svalue);
+
+                    } catch (ServiceException e) {
+                        System.err.println ("insertion failed");
+                    }
+
+
                 } else if (command.equals("close")) {
                     System.err.println ("Close mock");
+
+                } else if (command.equals("exit")) {
+                  break;
                 }
             }
-            //System.err.println ("Bye dude!");
 
         } catch (MalformedURLException e ) {
             throw new RuntimeException(e);
@@ -87,6 +96,5 @@ System.err.println ("{\"key\":\""+ myKey + "\",\"data\":\"" + aux + "\"}");
         } catch (ServiceException e) {
             throw new RuntimeException("Could not create DHT!", e);
         }
-
     }
 } 

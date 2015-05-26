@@ -1,12 +1,8 @@
 #!/usr/bin/env ruby
 # vim: ft=ruby : fileencoding=utf-8 : foldmethod=marker
-%w[ruby-progressbar optparse etc colored json awesome_print pry].each { |m| require m }
+%w[ruby-progressbar optparse colored json awesome_print].each { |m| require m }
 
 module OpenChord
-  class ::String #{{{
-    def warnout; warn self; end; 
-  end #}}}
-
   class Launcher
     attr_accessor :debug
 
@@ -15,49 +11,61 @@ module OpenChord
       # Create the dictionary to call the OpenChord routines
       # Overkill right? but it was supposed to have many elements at the beginning
       @@chordcmd = %i[Create Join].map do |k| 
-      [k, "java -cp /home/vicente/OpenChord/dist/Create.jar:/home/vicente/OpenChord/lib/json.jar eclipse.#{k.to_s.capitalize}"]
+        [k, "java -cp /home/vicente/OpenChord/dist/Create.jar:/home/vicente/OpenChord/lib/json.jar eclipse.#{k.to_s.capitalize}"]
       end.to_h
       @pidlist = {}
       @debug = false
 
       # Load configuration JSON file
-      @nodelist = File.open(filepath) { |f| JSON.parse(f.read) }
-      @universe = ["localhost"] | @nodelist['nodes']
+      @config   = File.open(filepath) { |f| JSON.parse(f.read) }
+      @nodes    = @config['nodes']
+      @universe = ["localhost"] | @nodes
+      @localdir = @config['localdir']
+      @PipeIn   = @localdir + "/pipe.in"
+      @PipeOut  = @localdir + "/pipe.out"
+      @PIDFile  = @localdir + "/ochord.pid"
 
-    rescue => e
-      (e.class.name == "Errno::ENOENT" ? "File not found, change filepath" : e.message).red.warnout
+      #Assert that the required variables are correctly setted
+      raise IOError unless File.stat(@localdir).writable? 
+
+    rescue Errno::ENOENT
+      abort "Configuration file at \"#{filepath}\" not found".red
+
+    rescue IOError
+      abort "The configuration file is not properly writen".red
     end
 
     # }}} 
     # create {{{
     #
     def create
-      make_pipe
-      system "#{@@chordcmd[:Create]} #{@nodelist['master_address']} < ochord.pipe.in > ochord.pipe.out 2>output &"
+      `mkfifo #{@PipeOut} #{@PipeIn}`
+
+      system "nohup #{@@chordcmd[:Create]} #{@config['master_address']} <#{@PipeIn} 1>#{@PipeOut} 2>output &"
       @pidlist['localhost'] = $?.pid + 1 # :WATCHOUT: Super buggy
 
       if @debug then
         pb = ProgressBar.create(:format => '%e %b>%i %p%% %t', 
-                                :total => @nodelist['nodes'].length, 
+                                :total => @nodes.length, 
                                 :progress_mark => "+".red)
       end
 
-      @nodelist['nodes'].each do |node|
-        @pidlist[node] = `ssh #{node} '#{@@chordcmd[:Join]} #{@nodelist['master_address']} &> /dev/null & echo $!' `.chomp
+      @nodes.each do |node|
+        @pidlist[node] = `ssh #{node} 'nohup #{@@chordcmd[:Join]} #{@config['master_address']} &> /dev/null & echo $!' `.chomp
         pb.increment if @debug
       end
 
-      File.open('ochord.pid', 'w') { |f| f.write JSON.generate(@pidlist) }
+      File.open(@PIDFile, 'w') { |f| f.write JSON.generate(@pidlist) }
     end
 
     # }}}
     # close {{{
     def close
-      @pidlist = File.open('ochord.pid') { |f| JSON.parse(f.read) }  # Assert that we have a pidfile
+      @pidlist = File.open(@PIDFile) { |f| JSON.parse(f.read) }  # Assert that we have a pidfile
 
       if @debug then
         pb = ProgressBar.create(:format => '%e %b>%i %p%% %t', 
-                                :total => (@nodelist['nodes'].length + 1), 
+                                :total => (@nodes.length + 1), 
                                 :progress_mark => "+".red)
       end
 
@@ -66,10 +74,10 @@ module OpenChord
         pb.increment if @debug
       end
 
-      File.delete 'ochord.pid'
-      File.delete 'ochord.pipe.in'
-      File.delete 'ochord.pipe.out'
-    rescue => e 
+      File.delete @PIDFile
+      File.delete @PipeIn
+      File.delete @PipeOut
+    rescue
       warn "No previous instance of openchord found"
       abort
     end
@@ -78,19 +86,20 @@ module OpenChord
     # hard_close {{{
     #
     def hardclose
+      system "pkill -u vicente -f 'eclipse.Create'"
       @universe.each do |node|                                    # Kill for each of the nodes
-        `ssh #{node} pkill -u vicente java` 
+        system "ssh #{node} 'pkill -u vicente -f \"eclipse.Join\"'"
       end
 
-      File.delete 'ochord.pid'
-      File.delete 'ochord.pipe.in'
-      File.delete 'ochord.pipe.out'
+      File.delete @PIDFile if File.exist? @PIDFile
+      File.delete @PipeIn if File.exist? @PipeIn
+      File.delete @PipeOut if File.exist? @PipeOut
     end
 
     # }}}
-    # show {{{
+    # Status {{{
     #
-    def show 
+    def status
       @universe.each do |node|                                    # Kill for each of the nodes
         `ssh #{node} pgrep -u vicente java`
         status = $?.exitstatus == 0 ? "Running" : "Stopped"
@@ -101,41 +110,58 @@ module OpenChord
     # }}}
     # info {{{
     def info 
-      ap File.open('ochord.pid') { |f| JSON.parse(f.read) } if File.exist? 'ochord.pid'
-      ap @nodelist
+      ap File.open(@PIDFile) { |f| JSON.parse(f.read) } if File.exist? @PIDFile
+      ap @nodes
     end
 
     ## }}}
     #  Insert {{{
-    #  Many harcoded things :TODO:
     #
     def insert key:, value:
-      fail "No instance of openchord runinng" unless File.exist? 'ochord.pid'
+      fail "No instance of openchord runinng" unless File.exist? @PIDFile
 
       package = {:command => 'insert', :key => key, :value => value}
-      File.open('ochord.pipe.in', 'w') { |f| f.write JSON.generate(package) }
+      File.open(@PipeIn, 'w') { |f| f.write JSON.generate(package) }
     end
     # }}}
     #  Retrieve {{{
-    #  Many harcoded things :TODO:
     #
     def retrieve key: 
-      fail "No instance of openchord runinng" unless File.exist? 'ochord.pid'
+      fail "No instance of openchord runinng" unless File.exist? @PIDFile
       package = {:command => 'retrieve', :key => key, :value => "dummy"}
-      f = File.open('ochord.pipe.out', 'r+');
-      File.open('ochord.pipe.in', 'w') { |f| f.write JSON.generate(package) }
+      mutex = Mutex.new
 
-      #Read the reply
-      output = JSON.parse(f.gets)
+      f = File.open(@PipeOut, File::RDONLY); #|File::NONBLOCK);
+
+      sender = Thread.new {
+        mutex.lock
+        sleep 0.5
+        File.open(@PipeIn, 'w') { |fa| fa.write JSON.generate(package) }
+      }
+
+      mutex.unlock if mutex.locked?
+      attempts = 0
+      begin
+        attempts += 1
+        output = JSON.parse(f.read_nonblock(1024))
+        rescue Errno::EAGAIN 
+          sleep 0.5
+          exit if attempts > 10
+          retry
+      end
+      sender.join
       puts output['data']
     end
-  end
     #}}}
-    # Make pipe {{{ 
-    def make_pipe
-      `mkfifo ochord.pipe.in; mkfifo ochord.pipe.out`
+    # Delete {{{
+    #
+    def delete key: 
+      fail "No instance of openchord runinng" unless File.exist? @PIDFile
+      package = {:command => 'delete', :key => key, :value => "dummy"}
+      File.open(@PipeIn, 'w') { |f| f.write JSON.generate(package) }
     end
     #}}}
+  end
 
   class CLIcontroler < Launcher
     def initialize input:, filepath:  #{{{
@@ -143,26 +169,38 @@ module OpenChord
       super(filepath: filepath)
 
       OptionParser.new do |opts|
-        opts.banner = <<EOF
-openchord.rb is a script to create a OpenChord network
-Usage: openchord.rb [-v/--verbose] [options]
-EOF
+        opts.banner = "openchord.rb is a script to create a OpenChord network\n" +
+                      "Usage: openchord.rb [-v/--verbose] [Actions]"
         opts.version = 1.0
         opts.program_name = "\'Ruby openchord\' launcher"
-        opts.separator "\nCore options"
-        opts.on("-c", "--create [Address]", "Create new openchord network") { |i| @options[:address] = i; create }
-        opts.on("-i key,value", "--insert key,value", Array, "insert new field") { |i,j| insert(key: i, value: j) }
-        opts.on("-r", "--retrieve key", "Retrieve existing field") { |i| retrieve(key: i) }
-        opts.on("-d", "--delete key"  , "delete a field") { |i| }
-        opts.on("-k", "--close"       , "close network")  { close }
-        opts.on("-K", "--hardclose"   , "no mercy close") { hardclose }
-        opts.separator "\nDebug options"
-        opts.on("-v", "--verbose"     , "Print out debug messages") { @debug = true } 
-        opts.on(      "--config"      , "Reveal current setting") { info }
-        opts.on(      "--show"        , "Check the status of the network") { show }
         opts.separator ""
-        opts.on_tail("-h", "--help"   , "recursive this") { puts opts }
+        opts.separator "Core Actions"
+        opts.separator "    create [Address]    Create new openchord network"
+        opts.separator "    insert KEY VALUE    Insert new field"
+        opts.separator "    retrieve KEY        Retrieve existing field"
+        opts.separator "    delete KEY          delete a field"
+        opts.separator "    close               close network"
+        opts.separator "    hardclose           no mercy close"
+        opts.separator "    status              Check the status of the network"
+        opts.separator "    config              Reveal current setting"
+        opts.separator ""
+        opts.separator "\nDebug options"
+        opts.on_tail("-v", "--verbose", "Print out debug messages") { @debug = true } 
+        opts.on_tail("-h", "--help"   , "recursive this") { puts opts; exit }
       end.parse! input
+
+      case input.shift
+      when 'create' then create
+      when 'close' then  close
+      when 'hardclose' then  hardclose
+      when 'status' then status
+      when 'insert' then    insert(key: input[0], value: input[1])
+      when 'retrieve' then    retrieve(key: input[0])
+      #when 'rm' then     delete input
+      #when 'ls' then     list
+      when 'config' then config
+      else               raise "Not action given"
+      end
     end 
   end #}}}
 end
