@@ -2,7 +2,7 @@
  *                                                                         *
  *                             Log4jLogger.java                            *
  *                            -------------------                          *
- *   date                 : 26. März 2004, 12:37                           *
+ *   date                 : 26. MÃ¤rz 2004, 12:37                           *
  *   copyright            : (C) 2004 Distributed and Mobile Systems Group  *
  *                              Lehrstuhl fuer Praktische Informatik       *
  *                              Universitaet Bamberg                       *

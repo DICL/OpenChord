@@ -235,15 +235,27 @@ public final class NodeImpl extends Node {
 					+ " at node " + this.nodeID);
 		}
 
+		//	System.out.println("Inserting entry with id " + toInsert.getId()
+		//			+ " at node " + this.nodeID);
 		// Possible, but rare situation: a new node has joined which now is
 		// responsible for the id!
-		if ((this.references.getPredecessor() == null)
-				|| !toInsert.getId().isInInterval(
-						this.references.getPredecessor().getNodeID(),
-						this.nodeID)) {
-			this.references.getPredecessor().insertEntry(toInsert); 
-			return;
-		}
+		//if ((this.references.getPredecessor() == null)
+		//		|| !toInsert.getId().isInInterval(
+		//				this.references.getPredecessor().getNodeID(),
+		//				this.nodeID)) {
+		//	this.references.getPredecessor().insertEntry(toInsert); 
+		//	return;
+
+		//}
+ if (this.references.getPredecessor() != null) {
+            if (!toInsert.getId().isInInterval(
+                    this.references.getPredecessor().getNodeID(),
+this.nodeID)) {
+                this.references.getPredecessor().insertEntry(toInsert);
+                return;
+            }
+        }
+
 
 		// add entry to local repository
 		this.entries.add(toInsert);
